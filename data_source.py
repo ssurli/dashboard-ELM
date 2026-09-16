@@ -22,7 +22,7 @@ COLONNE = [
     "zona", "sede", "data_collaudo", "anno_collaudo", "anzianita_anni",
     "soglia_vetusta", "vetusto", "stato_vetusta", "modalita_acquisizione", "pnrr", "note",
     "valore_economico", "scadenza_contratto", "scadenza_vse", "scadenza_cq",
-    "tipo_record",
+    "tipo_record", "ha_padre", "componente",
 ]
 
 
@@ -84,6 +84,31 @@ def _stato_vetusta(anzianita: pd.Series, soglia: pd.Series) -> pd.Series:
     return stato
 
 
+def _e_accessorio_per_nome(tipologia) -> bool:
+    t = str(tipologia or "").lower()
+    return any(kw in t for kw in config.PAROLE_CHIAVE_ACCESSORIO)
+
+
+def _classifica_componente(tipologia: pd.Series, ha_padre: pd.Series | None = None) -> pd.Series:
+    """'Accessorio / Consolle' vs 'Apparecchiatura principale'.
+
+    Criterio robusto quando disponibile: legame padre-figlio del cespite ELM
+    (refPadreId/refPadreNumero valorizzati -> è un accessorio del cespite padre;
+    campo 'padre' del Cespite_ELM). Le parole chiave sulla tipologia (es.
+    'consolle', 'iniettore per') restano il FALLBACK per i record dove il legame
+    non è popolato: verificato sull'ambiente di test che accade spesso anche su
+    accessori veri e propri. Nel NSIS (nessun legame padre-figlio) si usa solo
+    la parola chiave, innocuo perché le categorie NSIS non includono accessori."""
+    per_nome = tipologia.map(_e_accessorio_per_nome)
+    if ha_padre is not None:
+        # apply invece di fillna(False): ha_padre può arrivare a dtype 'object'
+        # (reindex su cache .parquet senza la colonna, tutta NaN) ed evita il
+        # FutureWarning di pandas sul downcasting silenzioso in quel caso.
+        ha_padre_bool = ha_padre.apply(lambda v: bool(v) if pd.notna(v) else False)
+        per_nome = per_nome | ha_padre_bool
+    return per_nome.map({True: "Accessorio / Consolle", False: "Apparecchiatura principale"})
+
+
 # --------------------------------------------------------------------------- #
 # Sorgente NSIS (offline)
 # --------------------------------------------------------------------------- #
@@ -130,8 +155,9 @@ def carica_nsis(path: str) -> pd.DataFrame:
     df["scadenza_vse"] = pd.NaT
     df["scadenza_cq"] = pd.NaT
     df["tipo_record"] = "cespite"
+    df["ha_padre"] = False  # nessun legame padre-figlio nel NSIS: solo unità principali
 
-    return df[COLONNE]
+    return df.reindex(columns=COLONNE)
 
 
 # --------------------------------------------------------------------------- #
@@ -178,6 +204,7 @@ def mappa_cespiti_a_schema(df: pd.DataFrame) -> pd.DataFrame:
     out["note"] = ""
     out["valore_economico"] = df.get("valore_economico")
     out["tipo_record"] = df.get("tipo_record", "cespite")
+    out["ha_padre"] = df.get("ref_padre_id").notna() | df.get("ref_padre_numero").notna()
     return out
 
 
@@ -241,7 +268,15 @@ def carica_cache(cache_path: str = "parco.parquet") -> pd.DataFrame:
 def carica(sorgente: str = "nsis", nsis_path: str | None = None,
            max_records: int | None = None) -> pd.DataFrame:
     if sorgente == "api":
-        return carica_api(max_records=max_records)
-    if sorgente == "cache":
-        return carica_cache()
-    return carica_nsis(nsis_path or config.NSIS_PATH_DEFAULT)
+        df = carica_api(max_records=max_records)
+    elif sorgente == "cache":
+        df = carica_cache()
+    else:
+        df = carica_nsis(nsis_path or config.NSIS_PATH_DEFAULT)
+
+    # Ricalcolata sempre qui (non nei singoli loader): così una cache .parquet
+    # generata prima dell'introduzione di 'ha_padre' (colonna assente -> NaN dopo
+    # il reindex) ricade correttamente sulla sola parola chiave, senza nascondere
+    # tutto per un falso "nessuna riga è accessorio".
+    df["componente"] = _classifica_componente(df["tipologia"], df.get("ha_padre"))
+    return df

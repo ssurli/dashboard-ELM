@@ -29,7 +29,7 @@ def _euro(v) -> str:
 
 
 COLONNE_ELENCO_EXPORT = [
-    "n_inventario", "tipologia", "fabbricante", "modello", "zona", "sede",
+    "n_inventario", "tipologia", "componente", "fabbricante", "modello", "zona", "sede",
     "anno_collaudo", "anzianita_anni", "stato_vetusta", "modalita_acquisizione",
     "valore_economico", "scadenza_contratto", "scadenza_vse", "scadenza_cq",
 ]
@@ -203,6 +203,13 @@ f_tipo = _ms("Tipologia", "tipologia")
 f_fabbr = _ms("Fabbricante", "fabbricante")
 f_mod = _ms("Modalità acquisizione", "modalita_acquisizione")
 solo_vetuste = st.sidebar.checkbox("Solo vetuste (oltre soglia)")
+nascondi_accessori = st.sidebar.checkbox(
+    "Nascondi consolle / accessori / iniettori",
+    help="Consolle di comando, tavoli e iniettori sono censiti in ELM come cespiti "
+         "a sé stanti, distinti dall'apparecchiatura principale (TAC/RM/mammografo/"
+         "ecc.). Di default restano visibili come righe separate: spunta per "
+         "mostrare solo le unità principali. Classificazione basata sul legame "
+         "padre-figlio del cespite quando disponibile, altrimenti sul nome classe.")
 
 d = df.copy()
 if f_zona:
@@ -215,6 +222,8 @@ if f_mod:
     d = d[d["modalita_acquisizione"].isin(f_mod)]
 if solo_vetuste:
     d = d[d["vetusto"]]
+if nascondi_accessori:
+    d = d[d["componente"] != "Accessorio / Consolle"]
 
 # --------------------------------------------------------------------------- #
 # Intestazione + KPI
@@ -287,7 +296,7 @@ with tab_pan:
 with tab_elenco:
     st.subheader("Elenco apparecchiature")
     st.dataframe(
-        d[["n_inventario", "tipologia", "fabbricante", "modello", "zona", "sede",
+        d[["n_inventario", "tipologia", "componente", "fabbricante", "modello", "zona", "sede",
            "anno_collaudo", "anzianita_anni", "vetusto", "modalita_acquisizione",
            "valore_economico"]].style.format({"valore_economico": _euro}, na_rep="n.d."),
         use_container_width=True, hide_index=True,

@@ -48,6 +48,17 @@ ALIAS_FABBRICANTE = {
 # Percorso di default del file NSIS (fallback offline).
 NSIS_PATH_DEFAULT = "NSIS.xls"
 
+# Parole chiave (sottostringa su 'tipologia', case-insensitive) che identificano una
+# riga come accessorio/consolle/componente di una grande apparecchiatura (es. la
+# consolle di comando di un TAC, un iniettore per RM) e non l'unità principale.
+# In ELM sono censiti come cespiti a sé stanti. Di default restano visibili come
+# righe separate (più fedele all'inventario); il filtro "Nascondi accessori" in
+# sidebar usa questa lista per escluderli su richiesta.
+PAROLE_CHIAVE_ACCESSORIO = (
+    "consolle", "accessorio", "tavolo per", "iniettore per", "carrello",
+    "stativo per", "alimentatore", "bobina per", "dosimetria per",
+)
+
 # Intestazione aziendale per i report esportati.
 AZIENDA_NOME = "Azienda USL Toscana Nord Ovest"
 AZIENDA_UOC = "UOC Tecnologie — Dipartimento Tecnico e Patrimonio"

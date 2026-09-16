@@ -144,10 +144,65 @@ georeferenziata in nessuna delle due sorgenti dati.
 
 ## 10. Stato e prossimi passi
 
-- Integrazione ELM + MgCA: pronta e testata a livello di codice.
-- Ambiente **test**: anagrafica cespiti da popolare/abilitare correttamente (contratti
-  presenti, cespiti no) — per questo è stata richiesta a Metis la produzione o il
-  popolamento del test.
+- **L'ambiente di test Metis ora risponde** (i 500/403 precedenti sono spariti): una
+  `python sync.py` completa scarica realmente il parco (56.132 cespiti nell'intero
+  inventario elettromedicale aziendale, prima del filtro grandi apparecchiature).
+- Bug corretti durante il primo collaudo reale della sync (56k+ record):
+  - `sync.py` duplicava la mappatura campo-per-campo di `carica_api()` ma in modo
+    incompleto (`tipologia`/`sede` mancanti → `KeyError`). Estratta in
+    `data_source.mappa_cespiti_a_schema()`, punto unico riusato da entrambi.
+  - `mappa_cespiti_a_schema()` andava in crash su un DataFrame vuoto (caso reale:
+    sync incrementale notturna senza novità) — ora gestito esplicitamente.
+  - **`sync.py` non applicava affatto il filtro "grandi apparecchiature"**: scaricava
+    l'intero inventario (56.132 cespiti, incluse pompe di infusione, PC, termometri…).
+    Ora `AT20ElmClient.build_parco_apparecchiature()` accetta anche `data_da` (serve
+    per l'incrementale) ed è diventato il punto unico del filtro, usato sia da
+    `carica_api()` sia da `sync.py`.
+  - Paginazione MgCA: l'endpoint `classe/` rifiuta `limit>250` (mentre ELM accetta
+    pagine più grandi) — `MgcaClient` ora clampa la propria paginazione senza
+    toccare la config condivisa con l'eventuale client ELM.
+  - `MgcaClient.get_classi()` restituiva sempre 0 risultati: l'endpoint `classe/`
+    è un catalogo **condiviso a livello regionale** (non per singola azienda) e
+    filtrarlo per `codiceAzienda` (anche quello giusto) dà 0 righe — verificato
+    sull'ambiente di test. Rimosso il fallback automatico su `cfg.codice_azienda`.
+  - I "sistemi" (`/api/med/integrazione/sistema/`) venivano inclusi **sempre**,
+    assumendo fossero "per natura grandi apparecchiature": falso nei dati reali
+    (esistono sistemi banali, es. monitor+PC+autoclave assemblati). Ora filtrati
+    con lo stesso criterio dei cespiti.
+  - Euristica per parola chiave (fallback quando MgCA non ha il flag) troppo
+    permissiva: `"tomograf"` catturava anche `ECOTOMOGRAFO` (ecografi, ~640 record,
+    categoria diversa dalle grandi apparecchiature). Ristretta a frasi specifiche e
+    alla sola classe standardizzata (non più su descrizione/denominazione del
+    singolo cespite, testo libero e rumoroso).
+- **Il flag `grandeApparecchiatura` di MgCA è vuoto (`None`) su tutte le 2.994 classi
+  dell'ambiente di test**, incluse quelle ovviamente pertinenti (TAC, TRM, MAG, GCA,
+  ALI…): il filtro esatto non può quindi funzionare finché Metis non lo popola (o
+  conferma che sarà popolato in produzione). **Da chiedere esplicitamente a Metis.**
+  Nel frattempo si usa l'euristica per parola chiave (v. sopra), verificata ma non
+  garantita al 100%.
+- Con l'euristica ristretta, l'ultima sync ha trovato **185 grandi apparecchiature**
+  (157 cespiti + 28 sistemi) su 56.132: TAC 47, MAMMOGRAFO 49, RM 23, ANGIOGRAFIA 9,
+  ACCELERATORE LINEARE 6, GAMMA CAMERA 6+1, SISTEMI TAC/PET e TAC-GAMMA CAMERA 5+5,
+  più le rispettive consolle/iniettori/accessori come cespiti a sé stanti.
+- **Consolle/accessori/iniettori**: restano visibili come righe separate di default
+  (scelta della Direzione), con un filtro "Nascondi consolle / accessori / iniettori"
+  in sidebar per escluderli su richiesta. Classificazione (`data_source.componente`)
+  su due livelli: **criterio robusto** = legame padre-figlio del cespite ELM
+  (`refPadreId`/`refPadreNumero`, campo `padre` — verificato popolato su alcuni
+  record, es. una `SISTEMA TAC/PET INTEGRATO` e un `MAMMOGRAFO` risultano figli di
+  un altro cespite pur avendo un nome da "unità principale": il solo nome li avrebbe
+  persi); **fallback** = parola chiave su `tipologia` per i record dove il legame
+  non è popolato (spesso, in questo ambiente di test). Nel NSIS si usa solo il
+  fallback (nessun legame padre-figlio disponibile; innocuo perché le categorie
+  NSIS non includono accessori).
+- **Valore economico confermato disponibile e popolato** in questo ambiente (a
+  differenza del NSIS): es. acceleratore lineare € 1,6M, RM € 606K, TAC € 316K —
+  valori plausibili. `data_collaudo` invece manca su oltre il 60% dei record
+  (vetustà "n.d."): gap di popolamento dati, non un problema del codice.
+- Le zone (`zonaDenominazione`) arrivano dall'API senza normalizzazione di
+  formattazione (mix di maiuscolo/Titolo: "LUCCA", "Zona Apuana", "Versilia") e
+  includono valori non geografici ("DEFAULT", "BENI DA UBICARE", 26 record):
+  da vedere se normalizzarle per coerenza con la nomenclatura zone del NSIS.
 - Soglie di vetustà in `config.py` (default TAC/RM 8 anni, resto 10): allineare alle
   policy aziendali.
 - Mappa geografica delle sedi: da fare quando sarà disponibile un'anagrafica sedi

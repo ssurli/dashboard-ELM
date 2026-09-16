@@ -318,6 +318,15 @@ class AT20ElmClient:
             "dismissione_temporanea": c.get("dismissioneTemporanea"),
             "critico": c.get("critico"),
             "vitale": c.get("vitale"),
+            # Legame padre-figlio (es. la consolle di comando è un cespite a sé con
+            # refPadreId/refPadreNumero valorizzati verso il TAC/RM padre): criterio
+            # robusto per distinguere accessori dall'unità principale, più affidabile
+            # del solo nome-classe (verificato: popolato solo su una parte dei cespiti
+            # nell'ambiente di test, va quindi usato con fallback per parola chiave —
+            # vedi data_source._classifica_componente).
+            "ref_padre_id": c.get("refPadreId"),
+            "ref_padre_numero": c.get("refPadreNumero"),
+            "e_padre": c.get("padre"),
             # ubicazione
             "zona": c.get("zonaDenominazione"),          # zona ex-ASL
             "presidio": c.get("presidioDenominazione"),
@@ -359,6 +368,9 @@ class AT20ElmClient:
             "dismissione_temporanea": None,
             "critico": None,
             "vitale": None,
+            "ref_padre_id": None,      # i sistemi non espongono il legame padre-figlio
+            "ref_padre_numero": None,
+            "e_padre": None,
             "zona": s.get("zonaDenominazione"),
             "presidio": s.get("presidioDenominazione"),
             "edificio": s.get("edificioDenominazione"),
