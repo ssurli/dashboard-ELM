@@ -1,0 +1,14 @@
+# --- Connettore AT2.0 (ELM) ---
+requests>=2.31
+
+# --- Dashboard Streamlit ---
+streamlit>=1.36
+pandas>=2.2
+plotly>=5.22
+
+# --- Lettura estrazione NSIS (fallback offline) ---
+openpyxl>=3.1      # .xlsx
+xlrd>=2.0          # .xls legacy (NSIS)
+
+# --- Opzionale: gestione credenziali da file .env ---
+python-dotenv>=1.0
