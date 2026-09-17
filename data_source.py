@@ -17,10 +17,14 @@ import config
 
 
 # Colonne del DataFrame normalizzato prodotto da entrambe le sorgenti.
+# 'azienda' (sotto-azienda/ex-ASL) è la dimensione geografica PRIMARIA e affidabile;
+# 'zona' è il distretto sanitario, un dettaglio secondario e più granulare — vedi
+# config.py per la spiegazione completa della differenza (verificata sui dati reali).
 COLONNE = [
     "n_inventario", "descrizione", "tipologia", "fabbricante", "modello",
-    "zona", "sede", "data_collaudo", "anno_collaudo", "anzianita_anni",
-    "soglia_vetusta", "vetusto", "stato_vetusta", "modalita_acquisizione", "pnrr", "note",
+    "azienda", "azienda_codice", "zona", "sede", "data_collaudo", "anno_collaudo",
+    "anzianita_anni", "soglia_vetusta", "vetusto", "stato_vetusta",
+    "modalita_acquisizione", "pnrr", "note",
     "valore_economico", "scadenza_contratto", "scadenza_vse", "scadenza_cq",
     "tipo_record", "ha_padre", "componente",
 ]
@@ -36,6 +40,18 @@ def _norm_fabbricante(v) -> str:
         if chiave in low:
             return nome
     return s.title() if s else "n.d."
+
+
+def _norm_azienda(v) -> str:
+    """L'API ELM restituisce aziendaDenominazione con un prefisso fisso (verificato:
+    "AUSL TNo - Massa e Carrara", ecc.). Lo togliamo per restare confrontabili col
+    nome derivato dall'EX ASL del NSIS (config.EX_ASL_AD_AZIENDA), che usa i soli
+    nomi (es. "Massa e Carrara") — altrimenti il filtro "Sotto-azienda" non
+    combacerebbe tra le due sorgenti."""
+    s = str(v or "").strip()
+    if " - " in s:
+        s = s.split(" - ", 1)[1].strip()
+    return s or "n.d."
 
 
 def _modalita_da_note(note) -> str | None:
@@ -130,6 +146,13 @@ def carica_nsis(path: str) -> pd.DataFrame:
     df["descrizione"] = (df["tipologia"] + " " + df["modello"]).str.strip()
     df["zona"] = grezzo["EX ASL"].map(config.ZONE).fillna(
         grezzo["EX ASL"].astype(str))
+    # Sotto-azienda: il NSIS non ha aziendaDenominazione, ma 'EX ASL' è già il
+    # codice ex-ASL/sotto-azienda (non un distretto) — deriviamo il nome da lì.
+    # azienda_codice resta il codice EX ASL così com'è (numerazione NSIS, diversa
+    # da quella AT2.0 a 3 cifre: il confronto tra sorgenti va fatto su 'azienda',
+    # non su 'azienda_codice').
+    df["azienda"] = grezzo["EX ASL"].map(config.EX_ASL_AD_AZIENDA).fillna("n.d.")
+    df["azienda_codice"] = grezzo["EX ASL"].astype(str)
     df["sede"] = grezzo["CODUNITAOPERATIVA"].astype(str).str.strip()
 
     dc = _parse_data_collaudo(grezzo["DATACOLLAUDO"])
@@ -189,6 +212,8 @@ def mappa_cespiti_a_schema(df: pd.DataFrame) -> pd.DataFrame:
     out["tipologia"] = df.get("classe")
     out["fabbricante"] = df.get("fabbricante")
     out["modello"] = df.get("modello")
+    out["azienda"] = df.get("azienda").map(_norm_azienda)
+    out["azienda_codice"] = df.get("azienda_codice")
     out["zona"] = df.get("zona")
     out["sede"] = df.get("unita_operativa")
     dc = pd.to_datetime(df.get("data_collaudo"), errors="coerce", utc=True).dt.tz_localize(None)
@@ -273,6 +298,13 @@ def carica(sorgente: str = "nsis", nsis_path: str | None = None,
         df = carica_cache()
     else:
         df = carica_nsis(nsis_path or config.NSIS_PATH_DEFAULT)
+
+    # Retrocompatibilità: una cache .parquet generata prima dell'introduzione di
+    # 'azienda'/'azienda_codice' non ha quelle colonne -> NaN dopo il reindex in
+    # carica_cache(). "n.d." invece di NaN, per non rompere filtro/KPI/grafici.
+    # (Va comunque rigenerata con 'python sync.py' per popolarle davvero.)
+    df["azienda"] = df["azienda"].fillna("n.d.")
+    df["azienda_codice"] = df["azienda_codice"].fillna("n.d.")
 
     # Ricalcolata sempre qui (non nei singoli loader): così una cache .parquet
     # generata prima dell'introduzione di 'ha_padre' (colonna assente -> NaN dopo

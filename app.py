@@ -198,7 +198,8 @@ def _ms(label, col):
     return st.sidebar.multiselect(label, valori, default=[])
 
 
-f_zona = _ms("Zona", "zona")
+f_azienda = _ms("Sotto-azienda", "azienda")
+f_zona = _ms("Zona (distretto)", "zona")
 f_tipo = _ms("Tipologia", "tipologia")
 f_fabbr = _ms("Fabbricante", "fabbricante")
 f_mod = _ms("Modalità acquisizione", "modalita_acquisizione")
@@ -212,6 +213,8 @@ nascondi_accessori = st.sidebar.checkbox(
          "padre-figlio del cespite quando disponibile, altrimenti sul nome classe.")
 
 d = df.copy()
+if f_azienda:
+    d = d[d["azienda"].isin(f_azienda)]
 if f_zona:
     d = d[d["zona"].isin(f_zona)]
 if f_tipo:
@@ -233,14 +236,15 @@ if sorgente_key == "nsis":
     st.caption("Sorgente: estrazione NSIS (offline). Valore economico e scadenze "
                "non presenti in questa sorgente — disponibili con l'API AT2.0.")
 
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+k1, k2, k3, k4, k5, k6, k7 = st.columns(7)
 k1.metric("Apparecchiature", len(d))
 k2.metric("Tipologie", d["tipologia"].nunique())
-k3.metric("Zone", d["zona"].nunique())
-k4.metric("Sedi / UO", d["sede"].nunique())
+k3.metric("Sotto-aziende", d["azienda"].nunique())
+k4.metric("Zone", d["zona"].nunique())
+k5.metric("Sedi / UO", d["sede"].nunique())
 eta_media = d["anzianita_anni"].mean()
-k5.metric("Età media (anni)", f"{eta_media:.1f}" if pd.notna(eta_media) else "n.d.")
-k6.metric("Vetuste (oltre soglia)", int(d["vetusto"].sum()))
+k6.metric("Età media (anni)", f"{eta_media:.1f}" if pd.notna(eta_media) else "n.d.")
+k7.metric("Vetuste (oltre soglia)", int(d["vetusto"].sum()))
 
 valore_tot = pd.to_numeric(d["valore_economico"], errors="coerce").sum(min_count=1)
 if pd.notna(valore_tot):
@@ -270,28 +274,35 @@ with tab_pan:
         st.plotly_chart(px.bar(g, x="tipologia", y="n", title="Per tipologia",
                                text_auto=True), use_container_width=True)
     with c2:
-        g = d["zona"].value_counts().reset_index()
-        g.columns = ["zona", "n"]
-        st.plotly_chart(px.bar(g, x="zona", y="n", title="Per zona (ex-ASL)",
+        g = d["azienda"].value_counts().reset_index()
+        g.columns = ["azienda", "n"]
+        st.plotly_chart(px.bar(g, x="azienda", y="n", title="Per sotto-azienda",
                                text_auto=True), use_container_width=True)
     c3, c4 = st.columns(2)
     with c3:
+        g = d["zona"].value_counts().reset_index()
+        g.columns = ["zona", "n"]
+        st.plotly_chart(px.bar(g, x="zona", y="n", title="Per zona (distretto)",
+                               text_auto=True), use_container_width=True)
+    with c4:
         g = d["fabbricante"].value_counts().reset_index()
         g.columns = ["fabbricante", "n"]
         st.plotly_chart(px.bar(g, x="fabbricante", y="n", title="Per fabbricante",
                                text_auto=True), use_container_width=True)
-    with c4:
+    c5, c6 = st.columns(2)
+    with c5:
         dd = d.dropna(subset=["anzianita_anni"])
         st.plotly_chart(px.histogram(dd, x="anzianita_anni", nbins=20,
                                      title="Distribuzione anzianità (anni)"),
                         use_container_width=True)
-    ac = d.dropna(subset=["anno_collaudo"])
-    if not ac.empty:
-        g = ac.groupby(ac["anno_collaudo"].astype(int)).size().reset_index(name="n")
-        g.columns = ["anno_collaudo", "n"]
-        st.plotly_chart(px.bar(g, x="anno_collaudo", y="n",
-                               title="Parco per anno di collaudo", text_auto=True),
-                        use_container_width=True)
+    with c6:
+        ac = d.dropna(subset=["anno_collaudo"])
+        if not ac.empty:
+            g = ac.groupby(ac["anno_collaudo"].astype(int)).size().reset_index(name="n")
+            g.columns = ["anno_collaudo", "n"]
+            st.plotly_chart(px.bar(g, x="anno_collaudo", y="n",
+                                   title="Parco per anno di collaudo", text_auto=True),
+                            use_container_width=True)
 
 with tab_elenco:
     st.subheader("Elenco apparecchiature")

@@ -10,6 +10,40 @@ ZONE = {
     12: "Versilia",
 }
 
+# --------------------------------------------------------------------------- #
+# Sotto-aziende (ex-ASL) — dimensione PRIMARIA per questo cruscotto
+# --------------------------------------------------------------------------- #
+# IMPORTANTE — verificato sui dati reali ELM: 'zonaDenominazione' (il campo 'zona'
+# del parco) NON è la ex-ASL. È il DISTRETTO sanitario (es. "Zona Apuana",
+# "Lunigiana", "Valle del Serchio", "Valdera", "Alta Val di Cecina"), a volte non
+# valorizzato ("DEFAULT", "Beni da ubicare"). I distretti cambiano nel tempo: NON
+# compilare a mano una mappa distretto->azienda, si disallineerebbe. La dimensione
+# affidabile è la sotto-azienda, esposta direttamente dal Cespite_ELM come
+# aziendaDenominazione/aziendaCodice — usarla da lì (vedi at20_elm_client.py e
+# data_source.mappa_cespiti_a_schema), non derivarla dalla zona/distretto.
+#
+# Riferimento (codici AT2.0, coincidono con quelli già citati nel §8 del README):
+SOTTO_AZIENDE = {
+    101: "Massa e Carrara",
+    102: "Lucca",
+    105: "Pisa",
+    106: "Livorno",
+    112: "Viareggio",
+}
+
+# Mapping codice ex-ASL del NSIS ('EX ASL', numerazione 1/2/5/6/12 — diversa da
+# quella AT2.0 sopra, stesso concetto) -> nome sotto-azienda, per popolare 'azienda'
+# quando la sorgente è il NSIS (che non ha aziendaDenominazione) e restare
+# confrontabili con l'azienda derivata dall'API (data_source normalizza il prefisso
+# "AUSL TNo - " che l'API restituisce, per far combaciare i nomi).
+EX_ASL_AD_AZIENDA = {
+    1: "Massa e Carrara",
+    2: "Lucca",
+    5: "Pisa",
+    6: "Livorno",
+    12: "Viareggio",
+}
+
 # Soglie di vetustà (anni) per tipologia. Configurabili: adattare alle policy aziendali.
 SOGLIE_VETUSTA = {
     "TAC": 8,

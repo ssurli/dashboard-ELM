@@ -327,8 +327,13 @@ class AT20ElmClient:
             "ref_padre_id": c.get("refPadreId"),
             "ref_padre_numero": c.get("refPadreNumero"),
             "e_padre": c.get("padre"),
+            # Sotto-azienda (ex-ASL) — dimensione affidabile, verificata sui dati
+            # reali: NON confondere con 'zona' qui sotto, che è il distretto
+            # sanitario (zonaDenominazione), un concetto diverso e più granulare.
+            "azienda": c.get("aziendaDenominazione"),
+            "azienda_codice": c.get("aziendaCodice"),
             # ubicazione
-            "zona": c.get("zonaDenominazione"),          # zona ex-ASL
+            "zona": c.get("zonaDenominazione"),          # distretto sanitario (NON ex-ASL)
             "presidio": c.get("presidioDenominazione"),
             "edificio": c.get("edificioDenominazione"),
             "piano": c.get("piano"),
@@ -371,6 +376,10 @@ class AT20ElmClient:
             "ref_padre_id": None,      # i sistemi non espongono il legame padre-figlio
             "ref_padre_numero": None,
             "e_padre": None,
+            # A differenza del legame padre-figlio, aziendaDenominazione/aziendaCodice
+            # SONO presenti anche su Sistema_ELM (verificato sui dati reali): mappati.
+            "azienda": s.get("aziendaDenominazione"),
+            "azienda_codice": s.get("aziendaCodice"),
             "zona": s.get("zonaDenominazione"),
             "presidio": s.get("presidioDenominazione"),
             "edificio": s.get("edificioDenominazione"),
