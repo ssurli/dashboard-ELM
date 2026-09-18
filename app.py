@@ -318,10 +318,12 @@ with tab_pan:
 
     pivot_tipo_azienda = d.pivot_table(
         index="tipologia", columns="azienda", aggfunc="size", fill_value=0)
-    st.dataframe(
-        pivot_tipo_azienda.style.background_gradient(cmap="Blues", axis=None),
-        use_container_width=True,
+    fig_heat = px.imshow(
+        pivot_tipo_azienda, text_auto=True, color_continuous_scale="Blues",
+        aspect="auto", labels=dict(x="Sotto-azienda", y="Tipologia", color="N. apparecchiature"),
     )
+    fig_heat.update_layout(height=max(300, 28 * len(pivot_tipo_azienda)))
+    st.plotly_chart(fig_heat, use_container_width=True)
 
     if tipo_evid != "(nessuna)":
         de = d[d["tipologia"] == tipo_evid]
