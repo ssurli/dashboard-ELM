@@ -304,6 +304,41 @@ with tab_pan:
                                    title="Parco per anno di collaudo", text_auto=True),
                             use_container_width=True)
 
+    st.divider()
+    st.subheader("Distribuzione tipologie per sotto-azienda")
+    st.caption("Dove sono ubicate le apparecchiature di ciascun tipo (es. le RM) tra "
+               "le sotto-aziende. Riflette tutti i filtri attivi in sidebar.")
+
+    tipologie_pan = sorted(d["tipologia"].dropna().unique())
+    tipo_evid = st.selectbox(
+        "Evidenzia tipologia", ["(nessuna)"] + tipologie_pan,
+        help="Seleziona una tipologia (es. RM) per isolarne la distribuzione per "
+             "sotto-azienda e zona.",
+    )
+
+    pivot_tipo_azienda = d.pivot_table(
+        index="tipologia", columns="azienda", aggfunc="size", fill_value=0)
+    st.dataframe(
+        pivot_tipo_azienda.style.background_gradient(cmap="Blues", axis=None),
+        use_container_width=True,
+    )
+
+    if tipo_evid != "(nessuna)":
+        de = d[d["tipologia"] == tipo_evid]
+        ce1, ce2 = st.columns(2)
+        with ce1:
+            g = de["azienda"].value_counts().reset_index()
+            g.columns = ["azienda", "n"]
+            st.plotly_chart(px.bar(g, x="azienda", y="n",
+                                   title=f"{tipo_evid} — per sotto-azienda", text_auto=True),
+                            use_container_width=True)
+        with ce2:
+            g = de["zona"].value_counts().reset_index()
+            g.columns = ["zona", "n"]
+            st.plotly_chart(px.bar(g, x="zona", y="n",
+                                   title=f"{tipo_evid} — per zona (distretto)", text_auto=True),
+                            use_container_width=True)
+
 with tab_elenco:
     st.subheader("Elenco apparecchiature")
     st.dataframe(
